@@ -1,0 +1,16 @@
+cmake_minimum_required(VERSION 3.15)
+project(ConceptsTest)
+
+set(CMAKE_CXX_STANDARD 20)
+#set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libc++")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Werror -isystem /usr/local/include/c++/10.0.1")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -isystem /usr/local/lib/gcc/x86_64-pc-linux-gnu/10.0.1/../../../../include/c++/10.0.1")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -isystem /usr/local/lib/gcc/x86_64-pc-linux-gnu/10.0.1/../../../../include/c++/10.0.1/x86_64-pc-linux-gnu")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -isystem /usr/local/lib/gcc/x86_64-pc-linux-gnu/10.0.1/../../../../include/c++/10.0.1/backward")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -isystem /usr/local/lib/gcc/x86_64-pc-linux-gnu/10.0.1/include")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -isystem /usr/local/include")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -isystem /usr/local/lib/gcc/x86_64-pc-linux-gnu/10.0.1/include-fixed")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -isystem /usr/include/x86_64-linux-gnu")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -isystem /usr/include")
+
+add_executable(ConceptsTest main.cpp)
