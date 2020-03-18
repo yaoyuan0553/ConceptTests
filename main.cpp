@@ -3,6 +3,7 @@
 #include <iomanip>
 #include <type_traits>
 #include <string>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 #include <functional>
@@ -16,6 +17,194 @@ concept Incrementable = requires(T x) { ++x; x++; };
 
 template <typename T>
 concept Decrementable = requires(T x) { --x; x--; };
+
+template <typename Func>
+concept Function = std::is_function_v<Func>;
+
+template <typename Func>
+concept MemberFunction = std::is_member_function_pointer_v<Func>;
+
+template <typename Func>
+concept Method = MemberFunction<Func>;
+
+template <typename Func>
+concept FunctionOrMethod = Function<Func> || Method<Func>;
+
+template <typename Ret, typename Func, typename... Args>
+concept FunctionWithReturnType =
+    Function<Func> && same_as<invoke_result_t<Func, Args...>, Ret>;
+
+template <typename Ret, typename Func, typename Type, typename... Args>
+concept MethodWithReturnType = 
+    Method<Func> && same_as<invoke_result_t<Func, Type, Args...>, Ret>;
+
+template <typename Func, typename Type>
+concept MethodNoArgsWithReturnString = MethodWithReturnType<string, Func, Type>;
+
+
+namespace details
+{
+    template <typename T, typename = void_t<>>
+    struct _has_toString_t : std::false_type { };
+
+    template <typename T>
+    struct _has_toString_t<T, void_t<is_same<
+        decltype((declval<T>().toString())), 
+        std::string
+    >>> : std::true_type { };
+
+    template <typename T, typename = void_t<>>
+    struct _has_toString_const_t : std::false_type { };
+
+    template <typename T>
+    struct _has_toString_const_t<T, void_t<is_same<
+        decltype((declval<T const>().toString())), 
+        std::string
+    >>> : std::true_type { };
+}
+
+namespace details
+{
+    template <
+        typename Default, 
+        typename AlwaysVoid, 
+        template<class...> typename MetaOp, 
+        typename... MetaArgs
+    >
+    struct Detector {
+        using type = Default;
+        using value_t = false_type;
+        static constexpr bool value = value_t::value;
+    };
+
+    template <
+        typename Default,
+        template<class...> typename MetaOp,
+        typename... MetaArgs
+    >
+    struct Detector<Default, void_t<MetaOp<MetaArgs...>>, MetaOp, MetaArgs...> {
+        using type = MetaOp<MetaArgs...>;
+        using value_t = true_type;
+        static constexpr bool value = value_t::value;
+    };
+}
+
+/**
+ * @brief default type of the Default template parameter of Detector 
+ * when a given <MetaOp> and <MetaArgs> fail to evaluate to [true_type]
+ */
+struct Nonesuch {
+    Nonesuch() = delete;
+    ~Nonesuch() = delete;
+    Nonesuch(const Nonesuch&) = delete;
+    void operator=(const Nonesuch&) = delete;
+};
+
+template <template<class...> typename MetaOp, typename... MetaArgs>
+using is_detected = details::Detector<Nonesuch, void, MetaOp, MetaArgs...>;
+
+template <template<class...> typename MetaOp, typename... MetaArgs>
+using is_detected_t = typename is_detected<MetaOp, MetaArgs...>::value_t;
+
+template <template<class...> typename MetaOp, typename... MetaArgs>
+constexpr bool is_detected_v = is_detected_t<MetaOp, MetaArgs...>::value;
+
+template <template<class...> typename MetaOp, typename... MetaArgs>
+using detected_t = typename details::Detector<Nonesuch, void, MetaOp, MetaArgs...>::type;
+
+template <typename Default, template<class...> typename MetaOp, typename... MetaArgs>
+using detected_or = details::Detector<Default, void, MetaOp, MetaArgs...>;
+
+template <typename Default, template<class...> typename MetaOp, typename... MetaArgs>
+using detected_or_t = typename details::Detector<Default, void, MetaOp, MetaArgs...>::type;
+
+/**
+ * detection for T::hashCode() const;
+ */
+template <typename T>
+using hashCode_type = decltype(declval<const T&>().hashCode());
+
+template <typename T>
+using has_hashCode = is_detected<hashCode_type, T>;
+
+/**
+ * obtains the return type of T::hashCode() const
+ */
+template <typename T>
+using has_hashCode_ret_t = typename has_hashCode<T>::type;
+
+template <typename T>
+using has_hashCode_t = is_detected_t<hashCode_type, T>;
+
+template <typename T>
+constexpr bool has_hashCode_v = has_hashCode_t<T>::value;
+
+template <typename T>
+using has_hashCode_ret_int = std::is_same<int, has_hashCode_ret_t<T>>;
+
+template <typename T>
+constexpr bool has_hashCode_ret_int_v = has_hashCode_ret_int<T>::value;
+
+template <typename T>
+concept HasHashCode = has_hashCode_ret_int_v<T>;
+
+template <typename T>
+enable_if_t<has_hashCode_ret_int_v<T>, void> printObjViaHashCodeSFINAE(T&& t)
+{
+    cout << t.hashCode() << '\n';
+}
+
+/**
+ * toString()
+ */
+template <typename T>
+struct has_toString_t : details::_has_toString_t<T> { };
+
+template <typename T>
+constexpr bool has_toString_v = has_toString_t<T>::value;
+
+template <typename T>
+concept HasToString = requires(const T& t) { t.toString(); };
+
+template <typename T>
+concept HasToStringReturnString = 
+    MethodWithReturnType<string, decltype(&T::toString), T>;
+
+template <typename T>
+struct has_toString_const_t : details::_has_toString_const_t<T> { };
+
+template <typename T>
+constexpr bool has_toString_const_v = has_toString_const_t<T>::value;
+
+template <typename T>
+concept HasToStringConst = requires(T&& t, string (T::*)() const) { 
+    t.toString();
+};
+
+
+template <typename T>
+std::enable_if_t<has_toString_v<T>, void> printObjViaToStringSFINAE(const T& t) {
+    cout << t.toString() << '\n';
+}
+
+template <HasToStringReturnString T>
+void printObjViaToStringConcept(const T& t) {
+    cout << t.toString() << '\n';
+}
+// void printObjViaToStringConcept(HasToStringReturnString auto& t) {
+    // cout << t.toString() << '\n';
+// }
+
+template <typename T>
+std::enable_if_t<has_toString_const_v<T>, void> printObjViaToStringConstSFINAE(const T& t) {
+    cout << t.toString() << '\n';
+}
+
+template <HasToStringConst T>
+void printObjViaToStringConstConcept(const T& t) {
+    cout << t.toString() << '\n';
+}
+
 
 class Animal {
 protected:
@@ -224,11 +413,6 @@ public:
     }
 };
 
-void blah()
-{
-    std::string x;
-}
-
     
 //template <typename... Ts>
 //    requires (... && derived_from<remove_cvref_t<Ts>, Animal>)
@@ -267,6 +451,62 @@ void testThis()
     Maker<Animal>::callFuncOfObjs(&Animal::makeSound);
     Maker<Homeothermic>::callFuncOfObjs(&Homeothermic::getBodyTemperature, doug, kat, viro, owl);
     Maker<Tori>::callFuncOfObjs(&Tori::getFlyingSpeed, owl);
+    Maker<Homeothermic>::callFuncOfObjs(&Owl::getFlyingSpeed, owl);
+}
+
+struct TypeWithToString {
+    int x, y;
+
+    string toString() const { return to_string(x) + ", " + to_string(y); }
+};
+
+struct TypeWithoutToString {
+    int x, y;
+};
+
+struct TypeWithToStringNonConst {
+    int x, y;
+    string toString() { return "okay"; }
+};
+
+struct TypeWithToStringIllformed {
+    int x, y;
+    int toString() const { return x; }
+};
+
+struct TypeWithHashCode {
+    int x, y;
+
+    int hashCode() const { return x * y; }
+};
+
+struct TypeWithoutHashCode {
+    int x, y;
+};
+
+void testToString()
+{
+    TypeWithToString tw{1,2};
+    // TypeWithoutToString two{3,4};
+    // TypeWithToStringNonConst twnc{5,6};
+    // TypeWithToStringIllformed twi{3,4};
+
+    static_assert(FunctionOrMethod<decltype(&TypeWithToString::toString)>, "should be true");
+    static_assert(MethodWithReturnType<string, decltype(&TypeWithToString::toString), TypeWithToString>, "should be true");
+
+    printObjViaToStringConcept(tw);
+    // printObjViaToStringConcept(two);
+    // printObjViaToStringConcept(twnc);
+    // printObjViaToStringConcept(twi);
+
+    printObjViaToStringConstSFINAE(tw);
+    // printObjViaToStringConstSFINAE(twnc);
+
+    // TypeWithHashCode twh{1,2};
+    // TypeWithoutHashCode twoh{3,4};
+
+    // printObjViaHashCodeSFINAE(twh);
+    // printObjViaHashCodeSFINAE(twoh);
 }
 
 int main()
@@ -277,6 +517,8 @@ int main()
     Test t2{2};
 
     cout << boolalpha << (t1 == t2) << " " << (t1 < t2) << " " << (t1 > t2) << " " << (t1 != t2) << '\n';
+
+    testToString();
 
     return 0;
 }

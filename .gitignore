@@ -1,0 +1,7 @@
+.ropeproject/
+build/
+cmake-build-*/
+Release/
+.vscode/
+.clangd/
+.idea/
